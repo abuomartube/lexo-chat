@@ -1,0 +1,1382 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: auth
+    description: Authentication operations
+  - name: cards
+    description: LEXO Flashcard operations
+  - name: english-vocab
+    description: English Dashboard vocabulary engine (Phase E2)
+  - name: english-planner
+    description: English Study Planner engine (Phase E3) — daily adaptive plan
+  - name: english-engagement
+    description: English Engagement & Gamification (Phase E5) — XP levels, achievements, motivation, sessions
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /auth/signup:
+    post:
+      operationId: signup
+      tags: [auth]
+      summary: Register a new student account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: Account created and signed in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /auth/login:
+    post:
+      operationId: login
+      tags: [auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/logout:
+    post:
+      operationId: logout
+      tags: [auth]
+      summary: Log out the current user
+      responses:
+        "204":
+          description: Logged out
+
+  /auth/me:
+    get:
+      operationId: getCurrentUser
+      tags: [auth]
+      summary: Get the currently authenticated user
+      responses:
+        "200":
+          description: Current user (or null when not authenticated)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeResponse"
+    patch:
+      operationId: updateProfile
+      tags: [auth]
+      summary: Update the current user's profile (name, phone, bio, avatar)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/change-password:
+    post:
+      operationId: changePassword
+      tags: [auth]
+      summary: Change the current user's password (requires current password)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+      responses:
+        "200":
+          description: Password changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/{userId}/profile:
+    get:
+      operationId: getPublicProfile
+      tags: [auth]
+      summary: Get a user's public profile (avatar, name, bio, certificates)
+      parameters:
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Public profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicProfileResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /auth/forgot-password:
+    post:
+      operationId: forgotPassword
+      tags: [auth]
+      summary: Request a password reset link
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ForgotPasswordRequest"
+      responses:
+        "200":
+          description: If the email matches an account, a reset link has been sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /auth/reset-password:
+    post:
+      operationId: resetPassword
+      tags: [auth]
+      summary: Reset password using a token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+      responses:
+        "200":
+          description: Password reset successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /auth/send-verification:
+    post:
+      operationId: sendVerificationEmail
+      tags: [auth]
+      summary: Send (or re-send) the email verification link to the current user
+      responses:
+        "200":
+          description: Verification email queued (or no-op if already verified)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /auth/verify-email:
+    post:
+      operationId: verifyEmail
+      tags: [auth]
+      summary: Confirm an email-verification token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailRequest"
+      responses:
+        "200":
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /levels:
+    get:
+      operationId: listLevels
+      tags: [cards]
+      summary: List CEFR levels with counts
+      responses:
+        "200":
+          description: Levels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LevelSummary"
+  /words:
+    get:
+      operationId: listWords
+      tags: [cards]
+      summary: List words, optionally filtered by level
+      parameters:
+        - in: query
+          name: level
+          required: false
+          schema:
+            type: string
+            enum: [A1, A2, B1, B2, C1, ALL]
+        - in: query
+          name: search
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Word list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WordListItem"
+  /cards/{id}:
+    get:
+      operationId: getCard
+      tags: [cards]
+      summary: Get a flashcard with full details (translation + sentence)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Card detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Card"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /english/vocab/queue:
+    get:
+      operationId: getEnglishVocabQueue
+      tags: [english-vocab]
+      summary: Daily vocabulary review queue (package-aware)
+      description: |
+        Returns up to `limit` vocabulary items the student should study now.
+        Items with existing progress that are due (`next_review_at <= now`)
+        come first, ranked by status (needs_review > learning > review),
+        then by `consecutive_failures DESC`, then by `strength ASC`. If the
+        due set is smaller than `limit`, the remainder is filled with
+        never-seen ("new") words at allowed levels. Allowed levels are
+        derived from the student's active English package (beginner=A1/A2/B1,
+        intermediate=B2/C1, advanced=all).
+      parameters:
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: level
+          required: false
+          schema:
+            type: string
+            enum: [A1, A2, B1, B2, C1]
+      responses:
+        "200":
+          description: Review queue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabQueueResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/vocab/attempt:
+    post:
+      operationId: recordEnglishVocabAttempt
+      tags: [english-vocab]
+      summary: Record a vocabulary attempt (correct/incorrect) and apply SRS
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnglishVocabAttemptRequest"
+      responses:
+        "200":
+          description: Updated progress + XP awarded by this attempt
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabAttemptResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Word level is outside the student's active package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabForbiddenResponse"
+        "404":
+          description: Word not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /english/vocab/{wordId}/mastered:
+    post:
+      operationId: markEnglishVocabMastered
+      tags: [english-vocab]
+      summary: Manually mark a word as mastered
+      parameters:
+        - in: path
+          name: wordId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated progress + XP (+25 only on first mastery)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabAttemptResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Word level is outside the student's active package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabForbiddenResponse"
+        "404":
+          description: Word not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /english/vocab/{wordId}/needs-review:
+    post:
+      operationId: markEnglishVocabNeedsReview
+      tags: [english-vocab]
+      summary: Manually flag a word as needing review
+      parameters:
+        - in: path
+          name: wordId
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Updated progress (no XP awarded for self-marking)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabAttemptResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: Word level is outside the student's active package
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabForbiddenResponse"
+        "404":
+          description: Word not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /english/vocab/stats:
+    get:
+      operationId: getEnglishVocabStats
+      tags: [english-vocab]
+      summary: English vocabulary stats (XP totals, word counts, streak)
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishVocabStatsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/me/today-plan:
+    get:
+      operationId: getEnglishTodayPlan
+      tags: [english-planner]
+      summary: Adaptive daily study plan for the authenticated student
+      description: |
+        Computes today's personalized English study plan dynamically (no
+        persistence). Combines tier/level access, SRS state in
+        `english_word_progress`, lesson catalog + completions, XP ledger
+        signals, and an adaptive-difficulty heuristic to return:
+        next lesson, due reviews, weak words, mastery targets, new words,
+        optional challenge words, target counts, and an estimated study
+        time. Returns 200 with empty buckets and a `notes` hint for
+        unenrolled users so the UI can render a single screen for both
+        states.
+      responses:
+        "200":
+          description: Today's plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishTodayPlan"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/me/progression:
+    get:
+      operationId: getEnglishProgression
+      tags: [english-engagement]
+      summary: Lifetime XP, level, mastery%, vocabulary coverage, review pressure, streak
+      responses:
+        "200":
+          description: Progression summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishProgressionSummary"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/me/achievements:
+    get:
+      operationId: getEnglishAchievements
+      tags: [english-engagement]
+      summary: All defined English achievements + per-user unlock state
+      responses:
+        "200":
+          description: Achievement list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishAchievementsResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/me/motivation:
+    get:
+      operationId: getEnglishMotivation
+      tags: [english-engagement]
+      summary: Premium adaptive motivational message (EN + AR) for the current student
+      responses:
+        "200":
+          description: Motivation message + light context
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishMotivationResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /english/me/sessions/complete:
+    post:
+      operationId: completeEnglishStudySession
+      tags: [english-engagement]
+      summary: Mark a study session complete + check for perfect-session achievement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnglishSessionCompleteRequest"
+      responses:
+        "200":
+          description: Session recorded + any newly-granted achievements
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnglishSessionCompleteResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /audio/{hash}.mp3:
+    get:
+      operationId: getAudio
+      tags: [cards]
+      summary: Stream synthesized MP3 audio for a card hash
+      parameters:
+        - in: path
+          name: hash
+          required: true
+          schema:
+            type: string
+            pattern: "^[a-f0-9]{64}$"
+      responses:
+        "200":
+          description: Audio stream
+          content:
+            audio/mpeg:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Invalid audio id
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Audio not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Not authorized
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Resource already exists
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    MessageResponse:
+      type: object
+      properties:
+        message:
+          type: string
+      required:
+        - message
+    PublicUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          nullable: true
+        role:
+          type: string
+          enum: [student, admin]
+        emailVerified:
+          type: boolean
+        avatarUrl:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        preferredLanguage:
+          type: string
+          enum: [en, ar]
+        notifyExpiry:
+          type: boolean
+        notifyMarketing:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - email
+        - role
+        - emailVerified
+        - preferredLanguage
+        - notifyExpiry
+        - notifyMarketing
+        - createdAt
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: "#/components/schemas/PublicUser"
+      required:
+        - user
+    MeResponse:
+      type: object
+      properties:
+        user:
+          oneOf:
+            - $ref: "#/components/schemas/PublicUser"
+            - type: "null"
+      required:
+        - user
+    SignupRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+          maxLength: 32
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+        - name
+        - email
+        - password
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 1
+      required:
+        - email
+        - password
+    ForgotPasswordRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+      required:
+        - email
+    ResetPasswordRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 8
+        password:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+        - token
+        - password
+    VerifyEmailRequest:
+      type: object
+      properties:
+        token:
+          type: string
+          minLength: 8
+      required:
+        - token
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        phone:
+          type: string
+          maxLength: 32
+          nullable: true
+        bio:
+          type: string
+          maxLength: 500
+          nullable: true
+        avatarObjectPath:
+          type: string
+          description: |
+            Object path returned from POST /storage/uploads/request-url after
+            the client uploaded a new avatar image. Server normalizes and
+            sets the avatar ACL, then stores the resulting public URL.
+          nullable: true
+        preferredLanguage:
+          type: string
+          enum: [en, ar]
+        notifyExpiry:
+          type: boolean
+        notifyMarketing:
+          type: boolean
+
+    ChangePasswordRequest:
+      type: object
+      properties:
+        currentPassword:
+          type: string
+          minLength: 1
+          maxLength: 128
+        newPassword:
+          type: string
+          minLength: 8
+          maxLength: 128
+      required:
+        - currentPassword
+        - newPassword
+
+    PublicProfileResponse:
+      type: object
+      properties:
+        profile:
+          $ref: "#/components/schemas/PublicProfile"
+      required:
+        - profile
+
+    PublicProfile:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          nullable: true
+        bio:
+          type: string
+          nullable: true
+        memberSince:
+          type: string
+          format: date-time
+        certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PublicProfileCertificate"
+      required:
+        - id
+        - name
+        - memberSince
+        - certificates
+
+    PublicProfileCertificate:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        course:
+          type: string
+          enum: [intro, english]
+        tier:
+          type: string
+        certificateId:
+          type: string
+        completionDate:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - course
+        - tier
+        - certificateId
+        - completionDate
+        - issuedAt
+
+    LevelSummary:
+      type: object
+      properties:
+        level:
+          type: string
+        count:
+          type: integer
+      required: [level, count]
+    WordListItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        english:
+          type: string
+        pos:
+          type: string
+        level:
+          type: string
+      required: [id, english, pos, level]
+    Card:
+      type: object
+      properties:
+        id:
+          type: integer
+        level:
+          type: string
+        english:
+          type: string
+        pos:
+          type: string
+        arabic:
+          type: string
+        sentenceEn:
+          type: string
+        sentenceAr:
+          type: string
+        audioWordUrl:
+          type: string
+        audioSentenceUrl:
+          type: string
+      required:
+        - id
+        - level
+        - english
+        - pos
+        - arabic
+        - sentenceEn
+        - sentenceAr
+        - audioWordUrl
+        - audioSentenceUrl
+
+    EnglishWordProgressStatus:
+      type: string
+      enum: [new, learning, review, mastered, needs_review]
+    EnglishVocabWord:
+      type: object
+      properties:
+        id:
+          type: integer
+        english:
+          type: string
+        arabic:
+          type: string
+          nullable: true
+        pos:
+          type: string
+        level:
+          type: string
+        sentenceEn:
+          type: string
+          nullable: true
+        sentenceAr:
+          type: string
+          nullable: true
+        audioWordPath:
+          type: string
+          nullable: true
+        audioSentencePath:
+          type: string
+          nullable: true
+      required: [id, english, pos, level]
+    EnglishVocabProgress:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/EnglishWordProgressStatus"
+        strength:
+          type: integer
+        repetitions:
+          type: integer
+        consecutiveFailures:
+          type: integer
+        studiedCount:
+          type: integer
+        correctCount:
+          type: integer
+        incorrectCount:
+          type: integer
+        lastReviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        lastFailedAt:
+          type: string
+          format: date-time
+          nullable: true
+        nextReviewAt:
+          type: string
+          format: date-time
+          nullable: true
+        masteredAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - status
+        - strength
+        - repetitions
+        - consecutiveFailures
+        - studiedCount
+        - correctCount
+        - incorrectCount
+    EnglishVocabQueueItem:
+      type: object
+      properties:
+        word:
+          $ref: "#/components/schemas/EnglishVocabWord"
+        progress:
+          oneOf:
+            - $ref: "#/components/schemas/EnglishVocabProgress"
+            - type: "null"
+      required: [word, progress]
+    EnglishVocabQueueResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnglishVocabQueueItem"
+        allowedLevels:
+          type: array
+          items:
+            type: string
+        activeTiers:
+          type: array
+          items:
+            type: string
+      required: [items, allowedLevels, activeTiers]
+    EnglishVocabAttemptRequest:
+      type: object
+      properties:
+        wordId:
+          type: integer
+        result:
+          type: string
+          enum: [correct, incorrect]
+      required: [wordId, result]
+    EnglishVocabFullProgress:
+      allOf:
+        - $ref: "#/components/schemas/EnglishVocabProgress"
+        - type: object
+          properties:
+            id:
+              type: integer
+            userId:
+              type: string
+              format: uuid
+            wordId:
+              type: integer
+            level:
+              type: string
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+          required: [id, userId, wordId, level, createdAt, updatedAt]
+    EnglishLevelUp:
+      type: object
+      description: Present when this op crossed a level threshold.
+      properties:
+        from: { type: integer }
+        to:   { type: integer }
+      required: [from, to]
+    EnglishAchievementCode:
+      type: string
+      description: Stable enum of unlockable English achievements.
+      enum:
+        - first_lesson
+        - first_mastered
+        - hundred_mastered
+        - five_hundred_mastered
+        - perfect_session
+        - xp_1000
+        - xp_5000
+        - xp_25000
+        - streak_7
+        - streak_30
+        - streak_100
+    EnglishVocabAttemptResponse:
+      type: object
+      properties:
+        progress:
+          $ref: "#/components/schemas/EnglishVocabFullProgress"
+        xpAwarded:
+          type: integer
+        becameMastered:
+          type: boolean
+        newlyGranted:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishAchievementCode" }
+        levelUp:
+          oneOf:
+            - $ref: "#/components/schemas/EnglishLevelUp"
+            - type: "null"
+      required: [progress, xpAwarded, becameMastered, newlyGranted, levelUp]
+    EnglishVocabForbiddenResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        allowedLevels:
+          type: array
+          items:
+            type: string
+      required: [error, allowedLevels]
+    EnglishVocabXpByLevel:
+      type: object
+      properties:
+        level:
+          type: string
+        xp:
+          type: integer
+      required: [level, xp]
+    EnglishVocabXpBySource:
+      type: object
+      properties:
+        source:
+          type: string
+        xp:
+          type: integer
+      required: [source, xp]
+    EnglishVocabWordCount:
+      type: object
+      properties:
+        status:
+          $ref: "#/components/schemas/EnglishWordProgressStatus"
+        count:
+          type: integer
+      required: [status, count]
+    EnglishVocabWordCountByLevel:
+      type: object
+      properties:
+        level:
+          type: string
+        status:
+          $ref: "#/components/schemas/EnglishWordProgressStatus"
+        count:
+          type: integer
+      required: [level, status, count]
+    EnglishVocabStatsResponse:
+      type: object
+      properties:
+        totalXp:
+          type: integer
+        xpByLevel:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnglishVocabXpByLevel"
+        xpBySource:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnglishVocabXpBySource"
+        wordCounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnglishVocabWordCount"
+        wordCountsByLevel:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnglishVocabWordCountByLevel"
+        streakDays:
+          type: integer
+      required:
+        - totalXp
+        - xpByLevel
+        - xpBySource
+        - wordCounts
+        - wordCountsByLevel
+        - streakDays
+    EnglishPlanDifficulty:
+      type: string
+      enum: [easy, medium, hard]
+    EnglishPerformanceSignals:
+      type: object
+      properties:
+        totalWords:        { type: integer }
+        masteredCount:     { type: integer }
+        reviewCount:       { type: integer }
+        learningCount:     { type: integer }
+        needsReviewCount:  { type: integer }
+        overdueCount:      { type: integer }
+        weakRatio:         { type: number, format: float }
+        averageStrength:   { type: number, format: float }
+        accuracy:          { type: number, format: float }
+        recentFailures:    { type: integer }
+        streakDays:        { type: integer }
+        hasEnrollment:     { type: boolean }
+      required:
+        - totalWords
+        - masteredCount
+        - reviewCount
+        - learningCount
+        - needsReviewCount
+        - overdueCount
+        - weakRatio
+        - averageStrength
+        - accuracy
+        - recentFailures
+        - streakDays
+        - hasEnrollment
+    EnglishWorkloadTargets:
+      type: object
+      properties:
+        reviewTarget:    { type: integer }
+        newTarget:       { type: integer }
+        weakTarget:      { type: integer }
+        challengeTarget: { type: integer }
+        masteryTarget:   { type: integer }
+      required: [reviewTarget, newTarget, weakTarget, challengeTarget, masteryTarget]
+    EnglishPlanLesson:
+      type: object
+      properties:
+        id:                  { type: integer }
+        title:               { type: string }
+        titleAr:             { type: string, nullable: true }
+        level:               { type: string }
+        tier:                { type: string }
+        sortOrder:           { type: integer }
+        watchedSeconds:      { type: integer }
+        durationSeconds:     { type: integer }
+        lastPositionSeconds: { type: integer }
+      required:
+        - id
+        - title
+        - titleAr
+        - level
+        - tier
+        - sortOrder
+        - watchedSeconds
+        - durationSeconds
+        - lastPositionSeconds
+    EnglishPlanVocabItem:
+      type: object
+      properties:
+        word:
+          $ref: "#/components/schemas/EnglishVocabWord"
+        progress:
+          oneOf:
+            - $ref: "#/components/schemas/EnglishVocabProgress"
+            - type: "null"
+      required: [word, progress]
+    EnglishTodayPlan:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        activeTiers:
+          type: array
+          items: { type: string }
+        allowedLevels:
+          type: array
+          items: { type: string }
+        difficulty:
+          $ref: "#/components/schemas/EnglishPlanDifficulty"
+        signals:
+          $ref: "#/components/schemas/EnglishPerformanceSignals"
+        workload:
+          $ref: "#/components/schemas/EnglishWorkloadTargets"
+        nextLesson:
+          oneOf:
+            - $ref: "#/components/schemas/EnglishPlanLesson"
+            - type: "null"
+        reviewVocabulary:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishPlanVocabItem" }
+        weakWords:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishPlanVocabItem" }
+        newWords:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishPlanVocabItem" }
+        challengeWords:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishPlanVocabItem" }
+        masteryTargets:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishPlanVocabItem" }
+        estimatedMinutes:
+          type: integer
+        recommendedRepetition:
+          type: integer
+        notes:
+          type: array
+          items: { type: string }
+      required:
+        - generatedAt
+        - activeTiers
+        - allowedLevels
+        - difficulty
+        - signals
+        - workload
+        - nextLesson
+        - reviewVocabulary
+        - weakWords
+        - newWords
+        - challengeWords
+        - masteryTargets
+        - estimatedMinutes
+        - recommendedRepetition
+        - notes
+    EnglishVocabCoverageRow:
+      type: object
+      properties:
+        level:    { type: string }
+        total:    { type: integer }
+        seen:     { type: integer }
+        mastered: { type: integer }
+      required: [level, total, seen, mastered]
+    EnglishProgressionSummary:
+      type: object
+      properties:
+        totalXp:         { type: integer }
+        level:           { type: integer }
+        xpIntoLevel:     { type: integer }
+        xpForNextLevel:  { type: integer }
+        nextLevelAt:     { type: integer }
+        masteryPercent:  { type: number, format: float }
+        vocabCoverage:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishVocabCoverageRow" }
+        reviewPressure:  { type: number, format: float }
+        overdueCount:    { type: integer }
+        dueCount:        { type: integer }
+        streakDays:      { type: integer }
+        allowedLevels:
+          type: array
+          items: { type: string }
+      required:
+        - totalXp
+        - level
+        - xpIntoLevel
+        - xpForNextLevel
+        - nextLevelAt
+        - masteryPercent
+        - vocabCoverage
+        - reviewPressure
+        - overdueCount
+        - dueCount
+        - streakDays
+        - allowedLevels
+    EnglishAchievementGroup:
+      type: string
+      enum: [lessons, mastery, session, xp, streak]
+    EnglishAchievement:
+      type: object
+      properties:
+        code:       { $ref: "#/components/schemas/EnglishAchievementCode" }
+        titleEn:    { type: string }
+        titleAr:    { type: string }
+        descEn:     { type: string }
+        descAr:     { type: string }
+        group:      { $ref: "#/components/schemas/EnglishAchievementGroup" }
+        unlocked:   { type: boolean }
+        awardedAt:
+          oneOf:
+            - { type: string, format: date-time }
+            - { type: "null" }
+      required: [code, titleEn, titleAr, descEn, descAr, group, unlocked, awardedAt]
+    EnglishAchievementsResponse:
+      type: object
+      properties:
+        achievements:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishAchievement" }
+      required: [achievements]
+    EnglishMotivationTone:
+      type: string
+      enum: [celebrate, steady, rebuild, welcome]
+    EnglishMotivationMessage:
+      type: object
+      properties:
+        en:   { type: string }
+        ar:   { type: string }
+        tone: { $ref: "#/components/schemas/EnglishMotivationTone" }
+      required: [en, ar, tone]
+    EnglishMotivationResponse:
+      type: object
+      properties:
+        message:    { $ref: "#/components/schemas/EnglishMotivationMessage" }
+        level:      { type: integer }
+        streakDays: { type: integer }
+      required: [message, level, streakDays]
+    EnglishSessionCompleteRequest:
+      type: object
+      properties:
+        attempts:        { type: integer, minimum: 0 }
+        correct:         { type: integer, minimum: 0 }
+        wordsMastered:   { type: integer, minimum: 0 }
+        durationSeconds: { type: integer, minimum: 0 }
+      required: [attempts, correct]
+    EnglishSessionCompleteResponse:
+      type: object
+      properties:
+        perfect: { type: boolean }
+        newlyGranted:
+          type: array
+          items: { $ref: "#/components/schemas/EnglishAchievementCode" }
+      required: [perfect, newlyGranted]
